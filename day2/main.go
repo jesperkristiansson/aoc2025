@@ -72,9 +72,57 @@ func part1(ranges []idRange) int {
 	return result
 }
 
-func part2(ranges []idRange) int {
+func divides(n1, n2 int) bool {
+	return n2%n1 == 0
+}
 
-	return 0
+func allEqual(slice []string) bool {
+	for i := 1; i < len(slice); i++ {
+		if slice[i] != slice[0] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isInvalid2(id int) bool {
+	idStr := strconv.Itoa(id)
+	idLen := len(idStr)
+
+	for i := range idLen / 2 {
+		lenToTest := i + 1
+		if !divides(lenToTest, idLen) {
+			continue
+		}
+
+		numSubStrings := idLen / lenToTest
+		subStrings := make([]string, numSubStrings)
+		for j := range numSubStrings {
+			start := j * lenToTest
+			end := (j + 1) * lenToTest
+			subStrings[j] = idStr[start:end]
+		}
+
+		if allEqual(subStrings) {
+			return true
+		}
+	}
+	return false
+}
+
+func part2(ranges []idRange) int {
+	result := 0
+	for _, idRange := range ranges {
+		diff := idRange.end - idRange.start + 1
+		for i := range diff {
+			id := idRange.start + i
+			if isInvalid2(id) {
+				result += id
+			}
+		}
+	}
+	return result
 }
 
 func main() {
