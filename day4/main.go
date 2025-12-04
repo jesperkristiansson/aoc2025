@@ -74,8 +74,29 @@ func part1(grid [][]bool) int {
 	return result
 }
 
-func part2(ranges [][]bool) int {
+// Removes as many rolls of paper as possible and returns the number removed
+func removePaper(grid [][]bool) int {
 	result := 0
+	for r := range grid {
+		for c := range grid[r] {
+			if isPaper(grid, r, c) && countAdjacentPapers(grid, r, c) <= maxAdjacentPapers {
+				result++
+				grid[r][c] = false
+			}
+		}
+	}
+	return result
+}
+
+func part2(grid [][]bool) int {
+	result := 0
+	for {
+		papersRemoved := removePaper(grid)
+		if papersRemoved == 0 {
+			break
+		}
+		result += papersRemoved
+	}
 	return result
 }
 
