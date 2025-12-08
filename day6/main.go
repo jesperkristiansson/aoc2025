@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 type operator int
@@ -20,14 +21,14 @@ type operation struct {
 	op      operator
 }
 
-func toOperator(str string) (operator, error) {
-	switch str {
-	case "+":
+func toOperator(ch byte) (operator, error) {
+	switch ch {
+	case '+':
 		return operatorAdd, nil
-	case "*":
+	case '*':
 		return operatorMul, nil
 	default:
-		return operator(0), fmt.Errorf("'%s' is not an operator", str)
+		return operator(0), fmt.Errorf("'%s' is not an operator", ch)
 	}
 }
 
@@ -65,11 +66,60 @@ func getPart1Data(lines []string) []operation {
 
 	operatorTokens := strings.Fields(lines[len(lines)-1])
 	for i, str := range operatorTokens {
-		op, err := toOperator(str)
+		if len(str) != 1 {
+			panic("Expected operator to only be single character")
+		}
+		op, err := toOperator(str[0])
 		if err != nil {
 			panic(err)
 		}
 		operations[i].op = op
+	}
+
+	return operations
+}
+
+func getPart2Data(lines []string) []operation {
+	var operations []operation
+
+	operatorLine := lines[len(lines)-1]
+	numberLines := lines[:len(lines)-1]
+
+	outI := 0
+	for i := len(operatorLine) - 1; i >= 0; {
+		var operation operation
+
+		for {
+			factor := 1
+			num := 0
+			for j := len(numberLines) - 1; j >= 0; j-- {
+				numberLine := numberLines[j]
+				ch := numberLine[i]
+				if unicode.IsDigit(rune(ch)) {
+					num += factor * int(ch-'0')
+					factor *= 10
+				}
+			}
+
+			operation.numbers = append(operation.numbers, num)
+
+			if operatorLine[i] != ' ' {
+				op, err := toOperator(operatorLine[i])
+				if err != nil {
+					panic(err)
+				}
+
+				operation.op = op
+
+				outI++
+				i -= 2
+				break
+			} else {
+				i -= 1
+			}
+		}
+
+		operations = append(operations, operation)
 	}
 
 	return operations
@@ -95,7 +145,7 @@ func doOperation(operation operation) int {
 	}
 }
 
-func part1(operations []operation) int {
+func doOperations(operations []operation) int {
 	sum := 0
 	for _, operation := range operations {
 		sum += doOperation(operation)
@@ -103,13 +153,10 @@ func part1(operations []operation) int {
 	return sum
 }
 
-func part2(operations []operation) int {
-	return 0
-}
-
 func main() {
 	lines := getLines()
 	part1Operations := getPart1Data(lines)
-	fmt.Println("part 1:", part1(part1Operations))
-	fmt.Println("part 2:", part2(part1Operations))
+	part2Operations := getPart2Data(lines)
+	fmt.Println("part 1:", doOperations(part1Operations))
+	fmt.Println("part 2:", doOperations(part2Operations))
 }
