@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 type operator int
@@ -16,9 +15,9 @@ const (
 	operatorMul
 )
 
-type data struct {
-	numbers   [][]int
-	operators []operator
+type operation struct {
+	numbers []int
+	op      operator
 }
 
 func toOperator(str string) (operator, error) {
@@ -32,58 +31,62 @@ func toOperator(str string) (operator, error) {
 	}
 }
 
-func getData() data {
-	var data data
+func getLines() []string {
+	var lines []string
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Text()
+		lines = append(lines, line)
+	}
+
+	return lines
+}
+
+func getPart1Data(lines []string) []operation {
+	var operations []operation
+
+	for i := 0; i < len(lines)-1; i++ {
+		line := lines[i]
 		stringSlice := strings.Fields(line)
 
-		if len(stringSlice) == 0 || len(stringSlice[0]) == 0 {
-			panic("Expected at least one rune in line")
+		if len(operations) == 0 {
+			operations = make([]operation, len(stringSlice))
 		}
 
-		r := rune(stringSlice[0][0])
-		if unicode.IsDigit(r) {
-			if len(data.numbers) == 0 {
-				data.numbers = make([][]int, len(stringSlice))
+		for j, str := range stringSlice {
+			n, err := strconv.Atoi(str)
+			if err != nil {
+				panic(err)
 			}
-			for i, str := range stringSlice {
-				n, err := strconv.Atoi(str)
-				if err != nil {
-					panic(err)
-				}
-				data.numbers[i] = append(data.numbers[i], n)
-			}
-		} else {
-			data.operators = make([]operator, len(stringSlice))
-			for i, str := range stringSlice {
-				op, err := toOperator(str)
-				if err != nil {
-					panic(err)
-				}
-				data.operators[i] = op
-			}
-
-			break
+			operations[j].numbers = append(operations[j].numbers, n)
 		}
 	}
 
-	return data
+	operatorTokens := strings.Fields(lines[len(lines)-1])
+	for i, str := range operatorTokens {
+		op, err := toOperator(str)
+		if err != nil {
+			panic(err)
+		}
+		operations[i].op = op
+	}
+
+	return operations
 }
 
-func doOperation(numbers []int, op operator) int {
+func doOperation(operation operation) int {
+	op := operation.op
 	switch op {
 	case operatorAdd:
 		sum := 0
-		for _, n := range numbers {
+		for _, n := range operation.numbers {
 			sum += n
 		}
 		return sum
 	case operatorMul:
 		product := 1
-		for _, n := range numbers {
+		for _, n := range operation.numbers {
 			product *= n
 		}
 		return product
@@ -92,21 +95,21 @@ func doOperation(numbers []int, op operator) int {
 	}
 }
 
-func part1(data data) int {
+func part1(operations []operation) int {
 	sum := 0
-	for i := range data.operators {
-		sum += doOperation(data.numbers[i], data.operators[i])
+	for _, operation := range operations {
+		sum += doOperation(operation)
 	}
 	return sum
 }
 
-func part2(data data) int {
+func part2(operations []operation) int {
 	return 0
 }
 
 func main() {
-	data := getData()
-	fmt.Println(data.numbers, data.operators)
-	fmt.Println("part 1:", part1(data))
-	fmt.Println("part 2:", part2(data))
+	lines := getLines()
+	part1Operations := getPart1Data(lines)
+	fmt.Println("part 1:", part1(part1Operations))
+	fmt.Println("part 2:", part2(part1Operations))
 }
