@@ -42,28 +42,33 @@ func parseDiagram(s string) []bool {
 	return diagram
 }
 
-func parseButton(s string) button {
-	l := len(s)
-	if l < 3 {
-		panic("Button too short")
-	}
-	if s[0] != '(' || s[l-1] != ')' {
-		panic("Diagram has invalid format")
-	}
+func parseIntList(s string) []int {
+	spl := strings.Split(s, ",")
 
-	spl := strings.Split(s[1:l-1], ",")
-
-	button := make(button, 0, len(spl))
+	l := make([]int, 0, len(spl))
 	for _, intStr := range spl {
 		n, err := strconv.Atoi(intStr)
 		if err != nil {
 			panic(err)
 		}
 
-		button = append(button, n)
+		l = append(l, n)
 	}
 
-	return button
+	return l
+}
+
+func parseButton(s string) button {
+	l := len(s)
+	if l < 3 {
+		panic("Button too short")
+	}
+	if s[0] != '(' || s[l-1] != ')' {
+		panic("Button has invalid format")
+	}
+
+	intListStr := s[1 : l-1]
+	return parseIntList(intListStr)
 }
 
 func parseButtons(ss []string) []button {
@@ -73,6 +78,19 @@ func parseButtons(ss []string) []button {
 		buttons = append(buttons, button)
 	}
 	return buttons
+}
+
+func parseJoltage(s string) []int {
+	l := len(s)
+	if l < 3 {
+		panic("Joltage list too short")
+	}
+	if s[0] != '{' || s[l-1] != '}' {
+		panic("Joltage list has invalid format")
+	}
+
+	intListStr := s[1 : l-1]
+	return parseIntList(intListStr)
 }
 
 func getInput() input {
@@ -91,10 +109,8 @@ func getInput() input {
 		diagramStr := lineSpl[0]
 		buttonStrs := lineSpl[1 : l-1]
 		joltageRequirementsStr := lineSpl[l-1]
-		// Not used in part 1
-		_ = joltageRequirementsStr
 
-		m := machine{diagram: parseDiagram(diagramStr), buttons: parseButtons(buttonStrs)}
+		m := machine{diagram: parseDiagram(diagramStr), buttons: parseButtons(buttonStrs), joltageRequirements: parseJoltage(joltageRequirementsStr)}
 		input = append(input, m)
 	}
 
