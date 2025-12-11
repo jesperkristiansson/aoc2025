@@ -73,10 +73,67 @@ func part1(am adjacencyMap) int {
 	return dfs(am, visited, "you", "out")
 }
 
-func part2(am adjacencyMap) int {
-	sum := 0
+type dfsResult struct {
+	pathsWithDac  int
+	pathsWithFft  int
+	pathsWithBoth int
+	pathsWithNone int
+}
+type cacheData struct {
+	isRunning bool
+	result    dfsResult
+}
 
-	return sum
+type cache map[string]cacheData
+
+func dfs2(am adjacencyMap, cache cache, current, target string) (result dfsResult) {
+	if current == target {
+		return dfsResult{pathsWithNone: 1}
+	}
+
+	currentCache, ok := cache[current]
+	if ok {
+		// Detect if we're following a loop
+		if currentCache.isRunning {
+			return
+		} else {
+			return currentCache.result
+		}
+	}
+	currentCache.isRunning = true
+	cache[current] = currentCache
+
+	subResultSum := dfsResult{}
+	for _, adj := range am[current] {
+		subResult := dfs2(am, cache, adj, target)
+		subResultSum.pathsWithBoth += subResult.pathsWithBoth
+		subResultSum.pathsWithDac += subResult.pathsWithDac
+		subResultSum.pathsWithFft += subResult.pathsWithFft
+		subResultSum.pathsWithNone += subResult.pathsWithNone
+	}
+
+	switch current {
+	case "dac":
+		result.pathsWithDac = subResultSum.pathsWithDac + subResultSum.pathsWithNone
+		result.pathsWithBoth = subResultSum.pathsWithBoth + subResultSum.pathsWithFft
+	case "fft":
+		result.pathsWithFft = subResultSum.pathsWithFft + subResultSum.pathsWithNone
+		result.pathsWithBoth = subResultSum.pathsWithBoth + subResultSum.pathsWithDac
+	default:
+		result = subResultSum
+	}
+
+	currentCache.isRunning = false
+	currentCache.result = result
+	cache[current] = currentCache
+	return
+}
+
+func part2(am adjacencyMap) int {
+	cache := make(cache, len(am))
+
+	result := dfs2(am, cache, "svr", "out")
+	return result.pathsWithBoth
 }
 
 func main() {
