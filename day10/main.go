@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -175,7 +176,7 @@ func tryButtons(m machine, n int) bool {
 	return tryButtonsHelper(m.diagram, initialState, m.buttons, n)
 }
 
-func solveMachine(m machine) int {
+func solveLights(m machine) int {
 	for i := 1; i < len(m.buttons); i++ {
 		if tryButtons(m, i) {
 			return i
@@ -189,14 +190,350 @@ func part1(machines input) int {
 	sum := 0
 
 	for _, m := range machines {
-		sum += solveMachine(m)
+		sum += solveLights(m)
 	}
 
 	return sum
 }
 
-func part2(input input) int {
+type equation struct {
+	coeffs []int
+	result int
+}
+
+func copyEquation(eq equation) equation {
+	eq2 := equation{result: eq.result, coeffs: make([]int, len(eq.coeffs))}
+	copy(eq2.coeffs, eq.coeffs)
+	return eq2
+}
+
+func copyEquations(eqs []equation) []equation {
+	eqs2 := make([]equation, len(eqs))
+	for i := range eqs {
+		eqs2[i] = copyEquation(eqs[i])
+	}
+	return eqs2
+}
+
+func printEquations(equations []equation) {
+	for _, eq := range equations {
+		for i, coeff := range eq.coeffs {
+			_ = i
+			// fmt.Printf("%d*x%d ", coeff, i)
+			fmt.Printf("%d ", coeff)
+		}
+		fmt.Printf("| %d\n", eq.result)
+	}
+}
+
+func toEquations(m machine) []equation {
+	equations := make([]equation, len(m.joltageRequirements))
+
+	for i, joltage := range m.joltageRequirements {
+		equations[i].result = joltage
+		equations[i].coeffs = make([]int, len(m.buttons))
+	}
+
+	for buttonI, button := range m.buttons {
+		for _, eqI := range button {
+			equations[eqI].coeffs[buttonI] = 1
+		}
+	}
+
+	return equations
+}
+
+func gcd_internal(n1, n2 int) int {
+	switch {
+	case n1 == n2:
+		return n1
+	case n1 > n2:
+		return gcd_internal(n1-n2, n2)
+	default:
+		return gcd_internal(n1, n2-n1)
+	}
+}
+
+func Gcd(n1, n2 int) int {
+	if n1 < 0 || n2 < 0 {
+		panic("Cannot compute gcd with negative numbers")
+	}
+	return gcd_internal(n1, n2)
+}
+
+func Lcm(n1, n2 int) int {
+	if n1 < 0 {
+		n1 = -n1
+	}
+	if n2 < 0 {
+		n2 = -n2
+	}
+
+	return n1 * n2 * Gcd(n1, n2)
+}
+
+func rowReduce(equations []equation) {
+	// for i := range equations[0].coeffs {
+	// }
+
+	elimI := 0
+	for i := range equations {
+		// fmt.Println("----------------")
+		// printEquations(equations)
+		moveI := -1
+		for moveI == -1 {
+			if elimI >= len(equations[0].coeffs) {
+				return
+				// panic("ran out of variables to eliminate")
+			}
+			for j := i; j < len(equations); j++ {
+				if equations[j].coeffs[elimI] != 0 {
+					moveI = j
+					break
+				}
+			}
+			if moveI == -1 {
+				elimI++
+			}
+		}
+
+		if moveI != i {
+			//swap equations
+			tmp := equations[i]
+			equations[i] = equations[moveI]
+			equations[moveI] = tmp
+		}
+
+		mainCoeff := equations[i].coeffs[elimI]
+		if mainCoeff == 0 {
+			panic("pivot variable == 0")
+		}
+
+		if mainCoeff < 0 {
+			for k := range equations[i].coeffs {
+				equations[i].coeffs[k] *= -1
+			}
+			equations[i].result *= -1
+			mainCoeff = equations[i].coeffs[elimI]
+		}
+
+		for j := i + 1; j < len(equations); j++ {
+			mainCoeff2 := equations[j].coeffs[elimI]
+			if mainCoeff2 != 0 {
+				if mainCoeff2%mainCoeff != 0 {
+					// make divisible
+					for k := range equations[j].coeffs {
+						equations[j].coeffs[k] *= mainCoeff
+					}
+					equations[j].result *= mainCoeff
+					mainCoeff2 = equations[j].coeffs[elimI]
+				}
+
+				factor := mainCoeff2 / mainCoeff
+				for k := range equations[j].coeffs {
+					equations[j].coeffs[k] -= factor * equations[i].coeffs[k]
+				}
+				equations[j].result -= factor * equations[i].result
+			}
+		}
+
+		elimI++
+	}
+}
+
+func findDeterminingEquations(rowReducedSystem []equation) []int {
+	l := len(rowReducedSystem[0].coeffs)
+	determiningEquations := make([]int, l)
+
+	varI := 0
+	for eqI, row := range rowReducedSystem {
+		stop := false
+		for !stop {
+			if varI == l {
+				return determiningEquations
+			}
+			if row.coeffs[varI] == 0 {
+				determiningEquations[varI] = -1
+			} else {
+				determiningEquations[varI] = eqI
+				stop = true
+			}
+			varI++
+		}
+	}
+
+	for varI < l {
+		determiningEquations[varI] = -1
+		varI++
+	}
+
+	return determiningEquations
+}
+
+var maxJoltage int = 0
+var minG int = math.MaxInt
+var bestSolution []int = nil
+
+func h(equations []equation, determiningEquations []int, solution []int, varI int) int {
+	if varI < 0 {
+		sum := 0
+		for _, val := range solution {
+			sum += val
+		}
+		if sum < minG {
+			minG = sum
+			bestSolution = make([]int, len(solution))
+			copy(bestSolution, solution)
+		}
+		return sum
+	}
+
+	isFreeVariable := determiningEquations[varI] == -1
+	if !isFreeVariable {
+		determiningEquation := equations[determiningEquations[varI]]
+		val := determiningEquation.result
+		for i := varI + 1; i < len(determiningEquations); i++ {
+			val -= determiningEquation.coeffs[i] * solution[i]
+		}
+
+		denom := determiningEquation.coeffs[varI]
+		if val%denom != 0 {
+			// fmt.Printf("%d %% %d = %d\n", val, denom, val%denom)
+			return -1
+		}
+
+		val /= denom
+		if val < 0 {
+			return -1
+		}
+
+		solution[varI] = val
+		return h(equations, determiningEquations, solution, varI-1)
+	} else {
+		min := math.MaxInt
+		// foundPossibleSolution := false
+
+		val := 0
+		for {
+			if val > maxJoltage {
+				if min == math.MaxInt {
+					return -1
+				} else {
+					return min
+				}
+			}
+
+			solution[varI] = val
+			// fmt.Println("testing solution:", solution)
+			res := h(equations, determiningEquations, solution, varI-1)
+			// fmt.Println("res:", res)
+			if res == -1 {
+				//decide whether to stop or not
+				// if foundPossibleSolution {
+				// 	return min
+				// }
+			} else {
+				// foundPossibleSolution = true
+				if res < min {
+					min = res
+				}
+			}
+
+			val++
+		}
+	}
+}
+
+func findMinSolution(equations []equation, determiningEquations []int) int {
+	numVars := len(determiningEquations)
+
+	// Trim all-zero equations
+	for i := len(equations) - 1; i >= 0; i-- {
+		allZero := true
+		for _, c := range equations[i].coeffs {
+			if c != 0 {
+				allZero = false
+				break
+			}
+		}
+		if !allZero {
+			equations = equations[:i+1]
+			break
+		}
+	}
+
+	// fmt.Println("After trimming")
+	// printEquations(equations)
+
+	minG = math.MaxInt
+	solution := make([]int, numVars)
+	return h(equations, determiningEquations, solution, numVars-1)
+}
+
+func testSolution(equations []equation, solution []int) bool {
+	for _, eq := range equations {
+		res := 0
+		for i := range solution {
+			res += eq.coeffs[i] * solution[i]
+		}
+		if res != eq.result {
+			fmt.Println(eq)
+			return false
+		}
+	}
+
+	return true
+}
+
+func solveEquations(equations []equation) int {
+	orig := copyEquations(equations)
+	// fmt.Println("before reduction")
+	// printEquations(equations)
+	rowReduce(equations)
+	// fmt.Println("after reduction")
+	// printEquations(equations)
+	// fmt.Println("original")
+	// printEquations(orig)
+	determiningEquations := findDeterminingEquations(equations)
+	// fmt.Println("determining equations", determiningEquations)
+
+	min := findMinSolution(equations, determiningEquations)
+	// fmt.Println("min:", min)
+	// fmt.Println("global min:", minG, "solution:", bestSolution)
+
+	solves1 := testSolution(equations, bestSolution)
+	solves2 := testSolution(orig, bestSolution)
+	if !solves1 {
+		panic("does not solve reduced equations")
+	}
+	if !solves2 {
+		panic("does not solve original equations")
+	}
+	return min
+}
+
+func getMaxJoltage(m machine) int {
+	max := 0
+	for _, j := range m.joltageRequirements {
+		if j > max {
+			max = j
+		}
+	}
+	return max
+}
+
+func solveJoltage(m machine) int {
+	maxJoltage = getMaxJoltage(m)
+	equations := toEquations(m)
+	return solveEquations(equations)
+}
+
+func part2(machines input) int {
 	sum := 0
+
+	for _, m := range machines {
+		sum += solveJoltage(m)
+	}
 
 	return sum
 }
